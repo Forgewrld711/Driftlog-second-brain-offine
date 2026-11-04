@@ -1,0 +1,1239 @@
+<title>Driftlog</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=Space+Mono:wght@400;700&display=swap">
+
+<style>
+/* ── Layout: full-screen canvas behind, sidebar input panel ── */
+:root {
+  /* dark-first: space aesthetic is the design */
+  color-scheme: dark;
+  --bg:         #090b12;
+  --surface:    #0f1320;
+  --panel:      #111827;
+  --border:     rgba(255,255,255,0.07);
+  --fg:         #e2e8f0;
+  --muted:      #64748b;
+  --dim:        #334155;
+
+  /* entity colors */
+  --people:     #60a5fa;   /* blue */
+  --places:     #34d399;   /* green */
+  --things:     #c084fc;   /* purple */
+  --feelings:   #fb923c;   /* orange */
+  --link-col:   rgba(148,163,184,0.18);
+
+  /* glow intensities */
+  --glow-people:   0 0 12px rgba(96,165,250,0.6), 0 0 28px rgba(96,165,250,0.25);
+  --glow-places:   0 0 12px rgba(52,211,153,0.6), 0 0 28px rgba(52,211,153,0.25);
+  --glow-things:   0 0 12px rgba(192,132,252,0.6), 0 0 28px rgba(192,132,252,0.25);
+  --glow-feelings: 0 0 12px rgba(251,146,60,0.6),  0 0 28px rgba(251,146,60,0.25);
+
+  /* type */
+  --font-ui:   'Inter', system-ui, sans-serif;
+  --font-mono: 'Space Mono', monospace;
+
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --bg:         #f1f5f9;
+    --surface:    #ffffff;
+    --panel:      #f8fafc;
+    --border:     rgba(0,0,0,0.09);
+    --fg:         #0f172a;
+    --muted:      #94a3b8;
+    --dim:        #cbd5e1;
+    --link-col:   rgba(100,116,139,0.25);
+    --people:     #2563eb;
+    --places:     #059669;
+    --things:     #7c3aed;
+    --feelings:   #ea580c;
+    --glow-people:   0 0 8px rgba(37,99,235,0.35);
+    --glow-places:   0 0 8px rgba(5,150,105,0.35);
+    --glow-things:   0 0 8px rgba(124,58,237,0.35);
+    --glow-feelings: 0 0 8px rgba(234,88,12,0.35);
+  }
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg:         #f1f5f9;
+  --surface:    #ffffff;
+  --panel:      #f8fafc;
+  --border:     rgba(0,0,0,0.09);
+  --fg:         #0f172a;
+  --muted:      #94a3b8;
+  --dim:        #cbd5e1;
+  --link-col:   rgba(100,116,139,0.25);
+  --people:     #2563eb;
+  --places:     #059669;
+  --things:     #7c3aed;
+  --feelings:   #ea580c;
+  --glow-people:   0 0 8px rgba(37,99,235,0.35);
+  --glow-places:   0 0 8px rgba(5,150,105,0.35);
+  --glow-things:   0 0 8px rgba(124,58,237,0.35);
+  --glow-feelings: 0 0 8px rgba(234,88,12,0.35);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  font-family: var(--font-ui);
+  background: var(--bg);
+  color: var(--fg);
+  overflow: hidden;
+}
+
+/* ── App shell ── */
+#app {
+  display: flex;
+  height: 100%;
+  width: 100%;
+}
+
+/* ── Canvas pane ── */
+#canvas-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+#starfield {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+#graph-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  cursor: grab;
+}
+#graph-canvas.grabbing { cursor: grabbing; }
+
+#tooltip {
+  position: absolute;
+  z-index: 10;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--fg);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  max-width: 220px;
+  line-height: 1.5;
+  backdrop-filter: blur(8px);
+}
+#tooltip.show { opacity: 1; }
+
+/* ── Empty state ── */
+#empty-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  pointer-events: none;
+  z-index: 2;
+  transition: opacity 0.4s;
+}
+#empty-state.hidden { opacity: 0; }
+.empty-icon {
+  font-size: 48px;
+  opacity: 0.15;
+  line-height: 1;
+}
+.empty-label {
+  font-size: 13px;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+.empty-hint {
+  font-size: 12px;
+  color: var(--dim);
+  text-align: center;
+  max-width: 260px;
+  line-height: 1.6;
+}
+
+/* ── Sidebar ── */
+#sidebar {
+  width: 320px;
+  min-width: 280px;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  z-index: 3;
+  overflow: hidden;
+  transition: width 0.25s ease;
+}
+
+#sidebar.collapsed {
+  width: 0;
+  min-width: 0;
+  border-left: none;
+}
+
+/* sidebar toggle */
+#toggle-sidebar {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 20;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 16px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+#toggle-sidebar:hover { color: var(--fg); border-color: var(--muted); }
+
+/* ── Sidebar header ── */
+.sidebar-header {
+  padding: 20px 20px 0;
+  flex-shrink: 0;
+}
+.app-title {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--fg);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.app-title span { opacity: 0.4; font-weight: 400; }
+.app-subtitle {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+
+/* ── Tabs ── */
+.tabs {
+  display: flex;
+  gap: 2px;
+  margin-top: 16px;
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 3px;
+}
+.tab {
+  flex: 1;
+  padding: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 6px;
+  text-align: center;
+  transition: color 0.15s, background 0.15s;
+  border: none;
+  background: transparent;
+  font-family: var(--font-ui);
+}
+.tab.active {
+  color: var(--fg);
+  background: var(--surface);
+}
+
+/* ── Tab panels ── */
+.tab-panel { display: none; flex: 1; overflow: hidden; flex-direction: column; }
+.tab-panel.active { display: flex; }
+
+/* ── Entry form ── */
+.entry-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  padding: 16px 20px;
+  gap: 12px;
+}
+
+.date-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.date-label {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+}
+.date-input {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--fg);
+  background: transparent;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  opacity: 0.7;
+}
+.date-input::-webkit-calendar-picker-indicator { filter: invert(0.6); cursor: pointer; }
+
+textarea#entry-text {
+  flex: 1;
+  resize: none;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--fg);
+  font-family: var(--font-ui);
+  outline: none;
+  transition: border-color 0.15s;
+  min-height: 120px;
+}
+textarea#entry-text:focus { border-color: var(--muted); }
+textarea#entry-text::placeholder { color: var(--dim); }
+
+.entry-actions {
+  display: flex;
+  gap: 8px;
+}
+.btn {
+  padding: 9px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  font-family: var(--font-ui);
+  transition: all 0.15s;
+  letter-spacing: 0.02em;
+}
+.btn-primary {
+  flex: 1;
+  background: var(--fg);
+  color: var(--bg);
+  border-color: transparent;
+}
+.btn-primary:hover { opacity: 0.85; }
+.btn-ghost {
+  background: transparent;
+  color: var(--muted);
+}
+.btn-ghost:hover { color: var(--fg); border-color: var(--muted); }
+
+/* entity preview chips */
+.entity-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-height: 28px;
+}
+.chip {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0.9;
+}
+.chip-people  { background: rgba(96,165,250,0.12); color: var(--people); border: 1px solid rgba(96,165,250,0.2); }
+.chip-places  { background: rgba(52,211,153,0.12); color: var(--places); border: 1px solid rgba(52,211,153,0.2); }
+.chip-things  { background: rgba(192,132,252,0.12); color: var(--things); border: 1px solid rgba(192,132,252,0.2); }
+.chip-feelings{ background: rgba(251,146,60,0.12); color: var(--feelings); border: 1px solid rgba(251,146,60,0.2); }
+
+.chip-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.entity-label {
+  font-size: 10px;
+  color: var(--dim);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+/* ── Log panel ── */
+.log-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  padding: 0 20px 16px;
+}
+.log-scroll {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-right: 2px;
+}
+.log-scroll::-webkit-scrollbar { width: 4px; }
+.log-scroll::-webkit-scrollbar-track { background: transparent; }
+.log-scroll::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 2px; }
+
+.log-entry {
+  padding: 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: border-color 0.15s, background 0.15s;
+}
+.log-entry:hover { background: var(--surface); border-color: var(--border); }
+.log-entry.active { background: var(--surface); border-color: var(--muted); }
+.log-date {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  margin-bottom: 4px;
+}
+.log-preview {
+  font-size: 12px;
+  color: var(--fg);
+  opacity: 0.75;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.log-nodes {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+.log-node-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+/* ── Legend ── */
+.legend {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  backdrop-filter: blur(8px);
+}
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 500;
+}
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── Zoom controls ── */
+.zoom-controls {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.zoom-btn {
+  width: 32px;
+  height: 32px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--muted);
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.15s;
+  font-family: var(--font-mono);
+}
+.zoom-btn:hover { color: var(--fg); }
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  #sidebar { width: 100%; border-left: none; border-top: 1px solid var(--border); max-height: 55%; }
+  #app { flex-direction: column; }
+  .legend { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+
+<div id="app">
+  <!-- Canvas side -->
+  <div id="canvas-wrap">
+    <canvas id="starfield"></canvas>
+    <canvas id="graph-canvas"></canvas>
+
+    <div id="empty-state">
+      <div class="empty-icon">✦</div>
+      <div class="empty-label">Your constellation awaits</div>
+      <div class="empty-hint">Write about your day — people you met, places you went, feelings you felt. Watch them become stars.</div>
+    </div>
+
+    <div id="tooltip"></div>
+
+    <button id="toggle-sidebar" title="Toggle panel" aria-label="Toggle panel">☰</button>
+
+    <div class="legend" id="legend" hidden>
+      <div class="legend-row"><div class="legend-dot" style="background:var(--people)"></div> People</div>
+      <div class="legend-row"><div class="legend-dot" style="background:var(--places)"></div> Places</div>
+      <div class="legend-row"><div class="legend-dot" style="background:var(--things)"></div> Things</div>
+      <div class="legend-row"><div class="legend-dot" style="background:var(--feelings)"></div> Feelings</div>
+    </div>
+
+    <div class="zoom-controls">
+      <button class="zoom-btn" id="zoom-in"  aria-label="Zoom in">+</button>
+      <button class="zoom-btn" id="zoom-out" aria-label="Zoom out">−</button>
+      <button class="zoom-btn" id="zoom-fit" aria-label="Fit to screen" style="font-size:11px;">⊡</button>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div id="sidebar">
+    <div class="sidebar-header">
+      <div class="app-title">driftlog <span>✦</span></div>
+      <div class="app-subtitle">your day, mapped as it drifts</div>
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="write" role="tab">Write</button>
+        <button class="tab"        data-tab="log"   role="tab">Log</button>
+      </div>
+    </div>
+
+    <!-- Write tab -->
+    <div class="tab-panel active" id="panel-write">
+      <div class="entry-form">
+        <div class="date-row">
+          <span class="date-label">Entry</span>
+          <input type="date" id="entry-date" class="date-input">
+        </div>
+        <textarea id="entry-text" placeholder="Write about your day… who did you see? where did you go? what are you feeling?"></textarea>
+        <div>
+          <div class="entity-label">detected</div>
+          <div class="entity-preview" id="entity-preview">
+            <span style="font-size:11px;color:var(--dim);font-style:italic">start typing to see nodes…</span>
+          </div>
+        </div>
+        <div class="entry-actions">
+          <button class="btn btn-ghost" id="btn-clear">Clear</button>
+          <button class="btn btn-primary" id="btn-map">Map to stars</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Log tab -->
+    <div class="tab-panel" id="panel-log">
+      <div class="log-panel">
+        <div class="log-scroll" id="log-scroll"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  DRIFTLOG — offline constellation journal
+//  v1.0 · Hackyard Yard #6
+// ═══════════════════════════════════════════════════════
+
+const STORAGE_KEY = 'driftlog_entries_v1';
+
+// ── Storage helpers ───────────────────────────────────
+function loadEntries() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+  catch(e) { return []; }
+}
+function saveEntries(entries) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(entries)); } catch(e) {}
+}
+
+// ── Entity extraction ─────────────────────────────────
+const FEELINGS = [
+  'happy','sad','anxious','tired','excited','grateful','overwhelmed','calm','angry',
+  'confused','proud','hopeful','lonely','content','frustrated','inspired','nervous',
+  'relieved','worried','joyful','nostalgic','love','loved','fear','scared','peaceful',
+  'energized','exhausted','stressed','curious','bored','melancholy','elated','numb',
+  'lost','found','whole','broken','healing','growing','stuck'
+];
+
+const PLACE_SIGNALS = [
+  'at','to','from','in','outside','inside','near','through','via','visited',
+  'went to','drove to','walked to','stopped at','passed','left','arrived'
+];
+
+const THING_SIGNALS = [
+  'reading','read','watching','watched','ate','eating','bought','worked on',
+  'using','used','found','lost','making','made','building','built','playing',
+  'started','finished','writing','wrote','tried','learning','studied'
+];
+
+function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+function titleCase(s) { return s.replace(/\w\S*/g, t => t.charAt(0).toUpperCase() + t.slice(1)); }
+
+function extractEntities(text) {
+  const lower = text.toLowerCase();
+  const entities = { people: [], places: [], things: [], feelings: [] };
+  const seen = new Set();
+
+  // Feelings — exact keyword match
+  FEELINGS.forEach(f => {
+    if (lower.includes(f) && !seen.has(f)) {
+      seen.add(f); entities.feelings.push(capitalize(f));
+    }
+  });
+
+  // People — capitalized names not at sentence start (simple heuristic)
+  const nameRe = /(?<![.!?]\s)(?<!\n)\b([A-Z][a-z]{1,14})(?:\s+[A-Z][a-z]{1,14})?\b/g;
+  const common = new Set(['I','The','A','An','It','He','She','We','They','But','So',
+    'And','Or','For','With','My','Your','His','Her','Our','Their',
+    'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday',
+    'January','February','March','April','May','June','July','August',
+    'September','October','November','December',
+    'Today','Yesterday','Tomorrow','This','That','These','Those',
+    'Just','Really','Very','Already','Still','Also','Even','Only']);
+  let match;
+  while ((match = nameRe.exec(text)) !== null) {
+    const name = match[1];
+    if (!common.has(name) && name.length > 1 && !seen.has(name.toLowerCase())) {
+      seen.add(name.toLowerCase());
+      entities.people.push(titleCase(match[0].trim()));
+    }
+  }
+
+  // Places — word(s) after place signals
+  PLACE_SIGNALS.forEach(signal => {
+    const re = new RegExp(`\\b${signal}\\b\\s+(?:the\\s+)?([A-Z][\\w'\\s-]{1,30})`, 'gi');
+    while ((match = re.exec(text)) !== null) {
+      const place = match[1].trim();
+      if (place.length > 2 && !seen.has(place.toLowerCase())) {
+        seen.add(place.toLowerCase());
+        entities.places.push(titleCase(place));
+      }
+    }
+    // also lowercase place after signal
+    const re2 = new RegExp(`\\b${signal}\\s+(\\w[\\w'\\s]{2,20})`, 'gi');
+    while ((match = re2.exec(text)) !== null) {
+      const place = match[1].trim();
+      if (place.length > 2 && !seen.has(place.toLowerCase()) && !FEELINGS.includes(place.toLowerCase())) {
+        seen.add(place.toLowerCase());
+        entities.places.push(titleCase(place));
+      }
+    }
+  });
+
+  // Things — word(s) after thing signals
+  THING_SIGNALS.forEach(signal => {
+    const re = new RegExp(`\\b${signal}\\s+(?:a\\s+|an\\s+|the\\s+)?([\\w][\\w'\\s-]{1,24})`, 'gi');
+    while ((match = re.exec(text)) !== null) {
+      const thing = match[1].trim().replace(/\s+/g,' ').split(' ').slice(0,3).join(' ');
+      if (thing.length > 2 && !seen.has(thing.toLowerCase()) && !FEELINGS.includes(thing.toLowerCase())) {
+        seen.add(thing.toLowerCase());
+        entities.things.push(titleCase(thing));
+      }
+    }
+  });
+
+  // Deduplicate people from places/things
+  entities.places = entities.places.filter(p => !entities.people.includes(p));
+  entities.things = entities.things.filter(t => !entities.people.includes(t) && !entities.places.includes(t));
+
+  // Cap each
+  entities.people   = entities.people.slice(0, 10);
+  entities.places   = entities.places.slice(0, 8);
+  entities.things   = entities.things.slice(0, 8);
+  entities.feelings = entities.feelings.slice(0, 8);
+
+  return entities;
+}
+
+// ── Graph layout (force-directed simplified) ──────────
+class Graph {
+  constructor() {
+    this.nodes = [];
+    this.edges = [];
+    this.panX = 0;
+    this.panY = 0;
+    this.scale = 1;
+  }
+
+  buildFromEntries(entries) {
+    this.nodes = [];
+    this.edges = [];
+    const nodeMap = new Map();
+
+    const getOrCreate = (label, type, entryIdx) => {
+      const key = `${type}:${label.toLowerCase()}`;
+      if (!nodeMap.has(key)) {
+        const node = {
+          id: key, label, type, entryIndices: [entryIdx],
+          x: (Math.random() - 0.5) * 600,
+          y: (Math.random() - 0.5) * 400,
+          vx: 0, vy: 0, radius: 0, glow: 0
+        };
+        nodeMap.set(key, node);
+        this.nodes.push(node);
+      } else {
+        const existing = nodeMap.get(key);
+        if (!existing.entryIndices.includes(entryIdx))
+          existing.entryIndices.push(entryIdx);
+      }
+      return nodeMap.get(key);
+    };
+
+    entries.forEach((entry, idx) => {
+      const { entities } = entry;
+      const allNodes = [];
+      ['people','places','things','feelings'].forEach(type => {
+        (entities[type] || []).forEach(label => {
+          allNodes.push(getOrCreate(label, type.slice(0,-1), idx));
+        });
+      });
+      // Connect all nodes within this entry
+      for (let i = 0; i < allNodes.length; i++) {
+        for (let j = i+1; j < allNodes.length; j++) {
+          const edgeKey = [allNodes[i].id, allNodes[j].id].sort().join('—');
+          if (!this.edges.find(e => e.key === edgeKey)) {
+            this.edges.push({ key: edgeKey, a: allNodes[i], b: allNodes[j], strength: 1 });
+          } else {
+            this.edges.find(e => e.key === edgeKey).strength++;
+          }
+        }
+      }
+    });
+
+    // Node radius by frequency
+    this.nodes.forEach(n => {
+      n.radius = 5 + n.entryIndices.length * 2.5;
+    });
+
+    this.simulate(300);
+  }
+
+  simulate(iterations) {
+    const repulse = 2800;
+    const attract = 0.025;
+    const damp    = 0.82;
+    const nodes   = this.nodes;
+    const edges   = this.edges;
+
+    for (let iter = 0; iter < iterations; iter++) {
+      // Repulsion
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i+1; j < nodes.length; j++) {
+          const dx = nodes[j].x - nodes[i].x;
+          const dy = nodes[j].y - nodes[i].y;
+          const dist2 = dx*dx + dy*dy + 0.01;
+          const force = repulse / dist2;
+          const fx = dx / Math.sqrt(dist2) * force;
+          const fy = dy / Math.sqrt(dist2) * force;
+          nodes[i].vx -= fx; nodes[i].vy -= fy;
+          nodes[j].vx += fx; nodes[j].vy += fy;
+        }
+      }
+      // Attraction along edges
+      edges.forEach(e => {
+        const dx = e.b.x - e.a.x;
+        const dy = e.b.y - e.a.y;
+        const len = Math.sqrt(dx*dx + dy*dy) + 0.01;
+        const idealLen = 90 + (e.a.radius + e.b.radius);
+        const stretch  = (len - idealLen) * attract;
+        const fx = dx/len * stretch;
+        const fy = dy/len * stretch;
+        e.a.vx += fx; e.a.vy += fy;
+        e.b.vx -= fx; e.b.vy -= fy;
+      });
+      // Integrate
+      nodes.forEach(n => {
+        n.vx *= damp; n.vy *= damp;
+        n.x += n.vx; n.y += n.vy;
+      });
+    }
+  }
+
+  nodeColorVar(type) {
+    return { person:'--people', place:'--places', thing:'--things', feeling:'--feelings' }[type] || '--fg';
+  }
+
+  getNodeAt(sx, sy, canvas) {
+    const cx = (sx - this.panX - canvas.width/2)  / this.scale;
+    const cy = (sy - this.panY - canvas.height/2) / this.scale;
+    for (let i = this.nodes.length - 1; i >= 0; i--) {
+      const n = this.nodes[i];
+      const dx = n.x - cx, dy = n.y - cy;
+      if (dx*dx + dy*dy < (n.radius+6)*(n.radius+6)) return n;
+    }
+    return null;
+  }
+
+  fitToCanvas(canvas) {
+    if (!this.nodes.length) return;
+    let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
+    this.nodes.forEach(n => {
+      minX = Math.min(minX, n.x - n.radius);
+      maxX = Math.max(maxX, n.x + n.radius);
+      minY = Math.min(minY, n.y - n.radius);
+      maxY = Math.max(maxY, n.y + n.radius);
+    });
+    const pad = 60;
+    const w = maxX - minX + pad*2, h = maxY - minY + pad*2;
+    this.scale = Math.min(canvas.width/w, canvas.height/h, 2);
+    this.panX = -(minX + maxX)/2 * this.scale;
+    this.panY = -(minY + maxY)/2 * this.scale;
+  }
+}
+
+// ── Renderer ──────────────────────────────────────────
+class Renderer {
+  constructor(canvas, starCanvas) {
+    this.canvas = canvas;
+    this.ctx    = canvas.getContext('2d');
+    this.starCanvas = starCanvas;
+    this.starCtx    = starCanvas.getContext('2d');
+    this.graph  = new Graph();
+    this.raf    = null;
+    this.hoveredNode = null;
+    this.selectedEntry = null;
+    this.time   = 0;
+    this.stars  = [];
+    this.isDark = this._isDark();
+    this.resize();
+    this._drawStars();
+  }
+
+  _isDark() {
+    const theme = document.documentElement.getAttribute('data-theme');
+    if (theme === 'dark') return true;
+    if (theme === 'light') return false;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+
+  resize() {
+    const dpr = window.devicePixelRatio || 1;
+    const w = this.canvas.parentElement.clientWidth;
+    const h = this.canvas.parentElement.clientHeight;
+    [this.canvas, this.starCanvas].forEach(c => {
+      c.width  = w * dpr;
+      c.height = h * dpr;
+      c.style.width  = w + 'px';
+      c.style.height = h + 'px';
+    });
+    this.ctx.scale(dpr, dpr);
+    this.starCtx.scale(dpr, dpr);
+    this._drawStars();
+  }
+
+  _getColor(varName) {
+    return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+  }
+
+  _drawStars() {
+    this.isDark = this._isDark();
+    const ctx = this.starCtx;
+    const w = this.starCanvas.width / (window.devicePixelRatio||1);
+    const h = this.starCanvas.height / (window.devicePixelRatio||1);
+    ctx.clearRect(0, 0, w, h);
+    if (!this.isDark) return;
+
+    this.stars = [];
+    const count = Math.floor(w * h / 3200);
+    for (let i = 0; i < count; i++) {
+      this.stars.push({
+        x: Math.random() * w, y: Math.random() * h,
+        r: Math.random() * 1.1 + 0.2,
+        a: Math.random() * 0.55 + 0.1,
+        phase: Math.random() * Math.PI * 2,
+        speed: Math.random() * 0.3 + 0.1
+      });
+    }
+    this.stars.forEach(s => {
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(255,255,255,${s.a})`;
+      ctx.fill();
+    });
+  }
+
+  startLoop() {
+    if (this.raf) return;
+    const tick = (ts) => {
+      this.time = ts / 1000;
+      this._frame();
+      this.raf = requestAnimationFrame(tick);
+    };
+    this.raf = requestAnimationFrame(tick);
+  }
+
+  stopLoop() {
+    if (this.raf) { cancelAnimationFrame(this.raf); this.raf = null; }
+  }
+
+  _frame() {
+    const ctx = this.ctx;
+    const W = this.canvas.width / (window.devicePixelRatio||1);
+    const H = this.canvas.height / (window.devicePixelRatio||1);
+    ctx.clearRect(0, 0, W, H);
+
+    const g = this.graph;
+    if (!g.nodes.length) return;
+
+    ctx.save();
+    ctx.translate(W/2 + g.panX, H/2 + g.panY);
+    ctx.scale(g.scale, g.scale);
+
+    // Draw edges
+    g.edges.forEach(e => {
+      const alpha = Math.min(0.6, 0.12 + e.strength * 0.08);
+      ctx.beginPath();
+      ctx.moveTo(e.a.x, e.a.y);
+      ctx.lineTo(e.b.x, e.b.y);
+      ctx.strokeStyle = this._getColor('--link-col').replace(')', `, ${alpha})`).replace('rgba(','rgba(');
+
+      // Dashed for cross-type edges
+      if (e.a.type !== e.b.type) {
+        ctx.setLineDash([3,6]);
+        ctx.lineWidth = 0.8;
+      } else {
+        ctx.setLineDash([]);
+        ctx.lineWidth = 1 + e.strength * 0.4;
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+    });
+
+    // Draw nodes
+    g.nodes.forEach(n => {
+      const color   = this._getColor('--' + (n.type==='person'?'people':n.type==='place'?'places':n.type==='thing'?'things':'feelings'));
+      const isHov   = n === this.hoveredNode;
+      const dimmed  = this.selectedEntry !== null && !n.entryIndices.includes(this.selectedEntry);
+      const pulse   = 1 + Math.sin(this.time * 1.6 + n.x * 0.01) * 0.08;
+      const r       = n.radius * (isHov ? 1.3 : 1) * pulse;
+
+      ctx.globalAlpha = dimmed ? 0.2 : 1;
+
+      // Outer glow
+      if (this.isDark) {
+        const glowR = r * 2.8;
+        const grd = ctx.createRadialGradient(n.x, n.y, r*0.4, n.x, n.y, glowR);
+        grd.addColorStop(0, color.replace('rgb','rgba').replace(')', ',0.35)') || `rgba(255,255,255,0.35)`);
+        grd.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, glowR, 0, Math.PI*2);
+        ctx.fillStyle = grd;
+        ctx.fill();
+      }
+
+      // Core node
+      const coreGrd = ctx.createRadialGradient(n.x - r*0.3, n.y - r*0.3, 0, n.x, n.y, r);
+      coreGrd.addColorStop(0, 'rgba(255,255,255,' + (this.isDark ? '0.9' : '0.7') + ')');
+      coreGrd.addColorStop(0.4, color);
+      coreGrd.addColorStop(1, color);
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r, 0, Math.PI*2);
+      ctx.fillStyle = coreGrd;
+      ctx.fill();
+
+      // Ring on hover
+      if (isHov) {
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, r + 4, 0, Math.PI*2);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5;
+        ctx.globalAlpha = 0.5;
+        ctx.stroke();
+        ctx.globalAlpha = dimmed ? 0.2 : 1;
+      }
+
+      // Label
+      const labelAlpha = isHov ? 1 : (this.scale > 0.65 ? 0.75 : 0.5);
+      ctx.font = `${isHov ? 500 : 400} ${isHov ? 12 : 11}px 'Inter', sans-serif`;
+      ctx.fillStyle = this.isDark ? `rgba(226,232,240,${labelAlpha})` : `rgba(15,23,42,${labelAlpha})`;
+      ctx.textAlign = 'center';
+      ctx.fillText(n.label, n.x, n.y + r + 14);
+
+      ctx.globalAlpha = 1;
+    });
+
+    ctx.restore();
+  }
+}
+
+// ── App state ─────────────────────────────────────────
+let entries = loadEntries();
+let renderer;
+let activeTab = 'write';
+let isDragging = false;
+let dragStart = { x:0, y:0 };
+let dragPan   = { x:0, y:0 };
+
+// ── Date helper ───────────────────────────────────────
+function todayISO() {
+  return new Date().toISOString().split('T')[0];
+}
+
+function formatDate(iso) {
+  if (!iso) return '';
+  const [y,m,d] = iso.split('-');
+  return new Date(+y, +m-1, +d).toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' });
+}
+
+// ── Entity preview ────────────────────────────────────
+let previewTimeout;
+function updatePreview(text) {
+  clearTimeout(previewTimeout);
+  previewTimeout = setTimeout(() => {
+    const container = document.getElementById('entity-preview');
+    if (!text.trim()) {
+      container.innerHTML = '<span style="font-size:11px;color:var(--dim);font-style:italic">start typing to see nodes…</span>';
+      return;
+    }
+    const ents = extractEntities(text);
+    const chips = [];
+    const add = (arr, cls) => arr.forEach(label => {
+      chips.push(`<div class="chip chip-${cls}"><span class="chip-dot"></span>${label}</div>`);
+    });
+    add(ents.people,   'people');
+    add(ents.places,   'places');
+    add(ents.things,   'things');
+    add(ents.feelings, 'feelings');
+    container.innerHTML = chips.length ? chips.join('') : '<span style="font-size:11px;color:var(--dim);font-style:italic">no entities detected yet…</span>';
+  }, 250);
+}
+
+// ── Render log ────────────────────────────────────────
+function renderLog() {
+  const scroll = document.getElementById('log-scroll');
+  if (!entries.length) {
+    scroll.innerHTML = '<div style="font-size:12px;color:var(--dim);text-align:center;margin-top:20px;line-height:1.7">No entries yet.<br>Write about your day.</div>';
+    return;
+  }
+  const sorted = [...entries].reverse();
+  scroll.innerHTML = sorted.map((entry, i) => {
+    const realIdx = entries.length - 1 - i;
+    const dots = ['people','places','things','feelings'].flatMap(t =>
+      (entry.entities[t]||[]).map(() => `<div class="log-node-dot" style="background:var(--${t==='feelings'?'feelings':t==='people'?'people':t==='places'?'places':'things'})"></div>`)
+    ).join('');
+    return `<div class="log-entry" data-idx="${realIdx}" tabindex="0">
+      <div class="log-date">${formatDate(entry.date)}</div>
+      <div class="log-preview">${entry.text.slice(0,100)}…</div>
+      <div class="log-nodes">${dots}</div>
+    </div>`;
+  }).join('');
+
+  scroll.querySelectorAll('.log-entry').forEach(el => {
+    el.addEventListener('click', () => {
+      const idx = +el.dataset.idx;
+      renderer.selectedEntry = idx;
+      renderer.graph.fitToCanvas(renderer.canvas);
+      scroll.querySelectorAll('.log-entry').forEach(e => e.classList.remove('active'));
+      el.classList.add('active');
+      switchTab('write');
+      // load entry into form
+      document.getElementById('entry-date').value = entries[idx].date;
+      document.getElementById('entry-text').value = entries[idx].text;
+      updatePreview(entries[idx].text);
+    });
+    el.addEventListener('keydown', e => { if (e.key==='Enter') el.click(); });
+  });
+}
+
+// ── Rebuild graph ─────────────────────────────────────
+function rebuildGraph() {
+  const emptyState = document.getElementById('empty-state');
+  const legend     = document.getElementById('legend');
+  if (!entries.length) {
+    emptyState.hidden = false;
+    legend.hidden     = true;
+    return;
+  }
+  emptyState.hidden = true;
+  legend.hidden     = false;
+  renderer.graph.buildFromEntries(entries);
+  renderer.graph.fitToCanvas(renderer.canvas);
+  renderer.startLoop();
+}
+
+// ── Tab switching ─────────────────────────────────────
+function switchTab(name) {
+  activeTab = name;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === `panel-${name}`));
+  if (name === 'log') renderLog();
+}
+
+// ── Init ──────────────────────────────────────────────
+function init() {
+  const canvas     = document.getElementById('graph-canvas');
+  const starCanvas = document.getElementById('starfield');
+  renderer = new Renderer(canvas, starCanvas);
+
+  // Set today's date
+  document.getElementById('entry-date').value = todayISO();
+
+  rebuildGraph();
+
+  // Textarea live preview
+  document.getElementById('entry-text').addEventListener('input', e => {
+    updatePreview(e.target.value);
+    renderer.selectedEntry = null;
+  });
+
+  // Map to stars
+  document.getElementById('btn-map').addEventListener('click', () => {
+    const text = document.getElementById('entry-text').value.trim();
+    const date = document.getElementById('entry-date').value || todayISO();
+    if (!text) return;
+    const entities = extractEntities(text);
+    const total = Object.values(entities).flat().length;
+    if (!total) { alert('No entities detected — try mentioning people, places, or feelings!'); return; }
+
+    // Check for existing same-date entry
+    const existIdx = entries.findIndex(e => e.date === date);
+    if (existIdx >= 0) {
+      entries[existIdx] = { date, text, entities, updatedAt: Date.now() };
+    } else {
+      entries.push({ date, text, entities, createdAt: Date.now() });
+    }
+    saveEntries(entries);
+    rebuildGraph();
+    renderLog();
+
+    // Flash entity preview
+    updatePreview(text);
+  });
+
+  // Clear
+  document.getElementById('btn-clear').addEventListener('click', () => {
+    document.getElementById('entry-text').value = '';
+    document.getElementById('entry-date').value = todayISO();
+    updatePreview('');
+    renderer.selectedEntry = null;
+  });
+
+  // Tabs
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+  });
+
+  // Sidebar toggle
+  document.getElementById('toggle-sidebar').addEventListener('click', () => {
+    document.getElementById('sidebar').classList.toggle('collapsed');
+    setTimeout(() => { renderer.resize(); rebuildGraph(); }, 280);
+  });
+
+  // Zoom
+  document.getElementById('zoom-in').addEventListener('click',  () => { renderer.graph.scale *= 1.25; });
+  document.getElementById('zoom-out').addEventListener('click', () => { renderer.graph.scale /= 1.25; });
+  document.getElementById('zoom-fit').addEventListener('click', () => renderer.graph.fitToCanvas(canvas));
+
+  // Pan/drag
+  canvas.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    isDragging = true;
+    dragStart = { x: e.clientX, y: e.clientY };
+    dragPan   = { x: renderer.graph.panX, y: renderer.graph.panY };
+    canvas.classList.add('grabbing');
+  });
+  window.addEventListener('mousemove', e => {
+    if (isDragging) {
+      renderer.graph.panX = dragPan.x + (e.clientX - dragStart.x);
+      renderer.graph.panY = dragPan.y + (e.clientY - dragStart.y);
+    } else {
+      const rect = canvas.getBoundingClientRect();
+      const node = renderer.graph.getNodeAt(e.clientX - rect.left, e.clientY - rect.top, canvas);
+      renderer.hoveredNode = node;
+      const tip = document.getElementById('tooltip');
+      if (node) {
+        const typeLabel = { person:'Person', place:'Place', thing:'Thing', feeling:'Feeling' }[node.type] || '';
+        tip.innerHTML = `<strong>${node.label}</strong><br><span style="font-size:10px;opacity:0.6;">${typeLabel} · ${node.entryIndices.length} entr${node.entryIndices.length===1?'y':'ies'}</span>`;
+        tip.classList.add('show');
+        tip.style.left = (e.clientX - rect.left + 14) + 'px';
+        tip.style.top  = (e.clientY - rect.top  - 14) + 'px';
+      } else {
+        tip.classList.remove('show');
+      }
+    }
+  });
+  window.addEventListener('mouseup', () => {
+    isDragging = false;
+    canvas.classList.remove('grabbing');
+  });
+
+  // Touch pan
+  let lastTouch = null;
+  canvas.addEventListener('touchstart', e => {
+    if (e.touches.length === 1) lastTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }, { passive: true });
+  canvas.addEventListener('touchmove', e => {
+    if (e.touches.length === 1 && lastTouch) {
+      renderer.graph.panX += e.touches[0].clientX - lastTouch.x;
+      renderer.graph.panY += e.touches[0].clientY - lastTouch.y;
+      lastTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
+  }, { passive: true });
+  canvas.addEventListener('touchend', () => { lastTouch = null; });
+
+  // Scroll-to-zoom
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.1 : 0.9;
+    renderer.graph.scale = Math.max(0.1, Math.min(5, renderer.graph.scale * factor));
+  }, { passive: false });
+
+  // Resize
+  window.addEventListener('resize', () => {
+    renderer.resize();
+    if (entries.length) renderer.graph.fitToCanvas(canvas);
+  });
+
+  // Redraw stars on theme change
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    renderer._drawStars();
+  });
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
