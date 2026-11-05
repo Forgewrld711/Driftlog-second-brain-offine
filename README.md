@@ -2,7 +2,7 @@
 
 > *your day, mapped as it drifts through your mind*
 
-A fully offline, single-file constellation journal. Write about your day — who you saw, where you went, how you felt — and watch it become a living star map.
+A fully offline constellation journal with a bundled 23 MB semantic model. Write about your day — who you saw, where you went, how you felt — and watch it become a living star map.
 
 **Built for [Hackyard Yard #6: Offline](https://hackyard.tech/yards/yard-6)**
 
@@ -27,19 +27,28 @@ Everything is stored in `localStorage`. No server. No account. No internet. **Ev
 
 ## How to use
 
-1. Download `driftlog.html`
-2. Open it in any browser
+1. Open the published site once and let the local brain finish waking up
+2. Keep using it online or offline — the app, runtime, and model are cached on-device
 3. Write about your day
 4. Hit **Map to stars**
 5. Watch your day become a constellation
 
-That's it.
+For local development, serve the repository instead of double-clicking the file:
+
+```sh
+python -m http.server 4175
+```
+
+Then open `http://localhost:4175/driftlog.html`. The deterministic recognizer still works when `driftlog.html` is opened directly, but browsers do not allow the local model Worker to load from `file://`.
 
 ---
 
 ## Features
 
-- ✦ Single `.html` file — truly offline, zero dependencies fetched at runtime
+- ✦ Bundled MiniLM semantic model — journal text stays on the device
+- ✦ Dedicated Web Worker keeps model inference away from the interface thread
+- ✦ Deterministic recognition remains instant and works even if the model is paused
+- ✦ Service Worker caches the complete app and model for offline use
 - ✦ Force-directed graph layout with gentle physics simulation
 - ✦ Animated glowing nodes that pulse softly
 - ✦ Drag to pan, scroll to zoom, fit-to-screen button
@@ -50,7 +59,7 @@ That's it.
 - ✦ Entries persist via `localStorage`
 - ✦ Contextual local recognition for people, bounded places, quoted works, tags, topics, and feeling families
 - ✦ `@people` and `#topics` provide intentional hints without sending text anywhere
-- ✦ Zero remote fonts, scripts, APIs, analytics, or network calls
+- ✦ Zero remote fonts, scripts, model APIs, analytics, or journal-data network calls
 
 ---
 
@@ -58,14 +67,14 @@ That's it.
 
 Your journal is yours. The most intimate thing you can write about — your day, your feelings, the people in your life — shouldn't require a server, an account, or a network request to exist. Driftlog works in a plane, in a blackout, on a machine with no internet, forever.
 
-The whole app is **~400 lines of vanilla HTML/CSS/JS**. No build step. No framework. No install.
+The interface is vanilla HTML/CSS/JS with no framework or build step. The pinned Transformers.js runtime, ONNX Runtime, tokenizer, and quantized model are committed with the app rather than fetched from a third party.
 
 ---
 
 ## Roadmap / v2 ideas
 
 - [ ] MCP server integration — expose your constellation as a tool for AI agents
-- [ ] Optional local-model pack for ambiguous entity refinement (download/import once, cache locally, never required)
+- [x] Local semantic model for ambiguous topic and feeling refinement
 - [ ] Voice entry via Web Speech API
 - [ ] Export constellation as SVG/PNG
 - [ ] Cross-entry "memory threads" — trace a person or feeling across time
@@ -77,6 +86,8 @@ The whole app is **~400 lines of vanilla HTML/CSS/JS**. No build step. No framew
 
 **Made by [Miranda Price](https://github.com/mirandaprice12345)**
 in collaboration with **Claude Sonnet 4.6** (Anthropic)
+
+Local semantic-brain upgrade built with **Morrow** (OpenAI Codex).
 
 Built in one session, submitted to Hackyard Yard #6 for the early-badge deadline.
 

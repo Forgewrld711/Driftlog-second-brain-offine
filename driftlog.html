@@ -216,6 +216,10 @@ html, body {
   text-transform: uppercase;
 }
 .privacy-pill::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; }
+.privacy-pill[data-state="loading"] { color: #f6c76b; border-color: rgba(246,199,107,0.22); background: rgba(246,199,107,0.06); }
+.privacy-pill[data-state="ready"] { color: #75e0b7; }
+.privacy-pill[data-state="off"],
+.privacy-pill[data-state="error"] { color: var(--muted); border-color: var(--border); background: rgba(133,140,168,0.05); }
 
 /* ── Tabs ── */
 .tabs {
@@ -301,6 +305,31 @@ textarea#entry-text {
 }
 textarea#entry-text:focus { border-color: var(--muted); }
 textarea#entry-text::placeholder { color: var(--dim); }
+
+.brain-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: -5px;
+  color: var(--dim);
+  font: 600 9px/1.35 var(--font-mono);
+  letter-spacing: 0.04em;
+}
+.brain-toggle {
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 8px;
+  color: var(--muted);
+  background: rgba(139,140,255,0.04);
+  cursor: pointer;
+  font: inherit;
+  text-transform: uppercase;
+}
+.brain-toggle:hover { color: var(--fg); border-color: rgba(139,140,255,0.3); }
+.brain-toggle[aria-pressed="true"] { color: #b8baff; border-color: rgba(139,140,255,0.3); }
+.brain-status { overflow: hidden; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
 
 .entry-actions {
   display: flex;
@@ -526,7 +555,7 @@ textarea#entry-text::placeholder { color: var(--dim); }
     <div class="sidebar-header">
       <div class="app-title">driftlog <span>✦</span></div>
       <div class="app-subtitle">your day, mapped as it drifts</div>
-      <div class="privacy-pill" title="No network calls. Recognition runs in this file.">offline · local recognizer</div>
+      <div class="privacy-pill" id="privacy-pill" data-state="loading" title="Rules and semantic recognition run on this device. Journal text never leaves it.">offline · local brain</div>
       <div class="tabs" role="tablist">
         <button class="tab active" data-tab="write" role="tab">Write</button>
         <button class="tab"        data-tab="log"   role="tab">Log</button>
@@ -541,6 +570,10 @@ textarea#entry-text::placeholder { color: var(--dim); }
           <input type="date" id="entry-date" class="date-input">
         </div>
         <textarea id="entry-text" placeholder="Write about your day… who did you see? where did you go? what are you feeling?"></textarea>
+        <div class="brain-row">
+          <button class="brain-toggle" id="brain-toggle" type="button" aria-pressed="true">semantic brain on</button>
+          <span class="brain-status" id="brain-status" aria-live="polite">waking locally…</span>
+        </div>
         <div>
           <div class="entity-label">detected</div>
           <div class="entity-preview" id="entity-preview">
@@ -566,10 +599,23 @@ textarea#entry-text::placeholder { color: var(--dim); }
 <script>
 // ═══════════════════════════════════════════════════════
 //  DRIFTLOG — offline constellation journal
-//  v1.0 · Hackyard Yard #6
+//  v1.1 · Hackyard Yard #6 · bundled local semantic brain
 // ═══════════════════════════════════════════════════════
 
 const STORAGE_KEY = 'driftlog_entries_v1';
+const BRAIN_PREF_KEY = 'driftlog_local_brain_v1';
+const LOCAL_MODEL_ID = 'Xenova/all-MiniLM-L6-v2';
+const LOCAL_MODEL_REVISION = '751bff37182d3f1213fa05d7196b954e230abad9';
+
+let brainEnabled = localStorage.getItem(BRAIN_PREF_KEY) !== 'off';
+let brainRequestId = 0;
+const localBrain = {
+  worker: null,
+  status: 'idle',
+  pending: new Map(),
+  model: null,
+  message: 'rules ready · model asleep'
+};
 
 // ── Storage helpers ───────────────────────────────────
 function loadEntries() {
@@ -628,8 +674,8 @@ const PLACE_SUFFIXES = [
 const TOPIC_HINTS = new Set([
   'app','album','article','assignment','baby','blockchain','book','cat','class','code',
   'college','computer','course','crystal','demo','design','dog','email','game','garden',
-  'homework','journal','meeting','movie','music','painting','podcast','project','quartz',
-  'recipe','rock','school','song','story','test','video','website','work'
+  'homework','journal','meeting','memory','movie','music','painting','podcast','project','quartz',
+  'recipe','research','rock','school','software','song','story','test','video','website','work'
 ]);
 
 const STOP_WORDS = new Set((
@@ -638,8 +684,8 @@ const STOP_WORDS = new Set((
   'him his how into its just know like made make many may might more most much myself near not now off often once only ' +
   'other our ours out over really said same she should since some still such than that the their theirs them then there ' +
   'these they thing things this those through today tomorrow too under until very want was way were what when where which ' +
-  'while who why will with would yesterday you your yours'.split(' ')
-));
+  'while who why will with would yesterday you your yours'
+).split(' '));
 
 const PHRASE_BREAKS = new Set([
   'and','but','because','before','after','while','when','where','which','who','that','then','so',
@@ -692,7 +738,7 @@ function extractEntities(text) {
   const add = (type, value) => {
     const clean = cleanPhrase(value, type === 'things' ? 5 : 4);
     const key = entityKey(clean);
-    if (clean.length < 2 || seen[type].has(key)) return;
+    if (clean.length < 2 || seen[type].has(key) || (type !== 'feelings' && STOP_WORDS.has(key))) return;
     seen[type].add(key);
     entities[type].push(type === 'feelings' ? capitalize(clean) : titleCase(clean));
   };
@@ -753,6 +799,14 @@ function extractEntities(text) {
     .slice(0, 6)
     .forEach(([word]) => add('things', word));
 
+  // Conceptual phrases after "in" are topics, not locations (for example, "in my memory tree").
+  const conceptualPlaces = entities.places.filter(value =>
+    value.split(/\s+/).some(word => TOPIC_HINTS.has(entityKey(word))) &&
+    !PLACE_SUFFIXES.some(suffix => entityKey(value).endsWith(` ${suffix}`) || entityKey(value) === suffix)
+  );
+  entities.places = entities.places.filter(value => !conceptualPlaces.includes(value));
+  conceptualPlaces.forEach(value => add('things', value));
+
   // Resolve cross-category collisions with explicit place > person > thing precedence.
   const placeKeys = new Set(entities.places.map(entityKey));
   entities.people = entities.people.filter(value => !placeKeys.has(entityKey(value)));
@@ -772,6 +826,183 @@ function extractEntities(text) {
   entities.things   = entities.things.slice(0, 12);
   entities.feelings = entities.feelings.slice(0, 10);
   return entities;
+}
+
+// ── Optional semantic layer (still fully local) ──────
+function buildSemanticCandidates(text, baseEntities) {
+  const candidates = [];
+  const seen = new Set();
+  const namedKeys = new Set([
+    ...baseEntities.people,
+    ...baseEntities.places
+  ].map(entityKey));
+  const feelingTerms = new Set(Object.values(FEELING_FAMILIES).flat().map(entityKey));
+  const add = value => {
+    const clean = value
+      .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}'’&-]+$/gu, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const key = entityKey(clean);
+    const singleInflectedVerb = !clean.includes(' ') && /(?:ed|ing)$/i.test(clean);
+    if (clean.length < 3 || clean.length > 52 || singleInflectedVerb || seen.has(key) || namedKeys.has(key) || feelingTerms.has(key)) return;
+    seen.add(key);
+    candidates.push(clean);
+  };
+
+  baseEntities.things.forEach(add);
+  for (const quoted of text.matchAll(/["“]([^"”\n]{2,50})["”]/g)) add(quoted[1]);
+
+  for (const clause of text.split(/[.!?;:\n]+/)) {
+    const words = clause.match(/[\p{L}\p{N}][\p{L}\p{N}'’&-]*/gu) || [];
+    const useful = word => {
+      const key = entityKey(word);
+      return key.length >= 3 && !STOP_WORDS.has(key) && !PHRASE_BREAKS.has(key) && !feelingTerms.has(key);
+    };
+    words.forEach((word, index) => {
+      if (!useful(word)) return;
+      add(word);
+      if (useful(words[index + 1] || '')) add(`${word} ${words[index + 1]}`);
+      if (useful(words[index + 1] || '') && useful(words[index + 2] || '')) {
+        add(`${word} ${words[index + 1]} ${words[index + 2]}`);
+      }
+    });
+  }
+  return candidates.slice(0, 28);
+}
+
+function mergeSemanticEntities(base, semantic) {
+  if (!semantic) return base;
+  const merged = Object.fromEntries(Object.entries(base).map(([type, values]) => [type, [...values]]));
+  const namedKeys = new Set([...merged.people, ...merged.places].map(entityKey));
+  const addUnique = (type, value) => {
+    const display = type === 'feelings' ? capitalize(value) : titleCase(value);
+    const key = entityKey(display);
+    if (!key || namedKeys.has(key) || merged[type].some(existing => entityKey(existing) === key)) return;
+    merged[type].push(display);
+  };
+  (semantic.things || []).forEach(value => addUnique('things', value));
+  (semantic.feelings || []).forEach(value => addUnique('feelings', value));
+  merged.things = merged.things.filter((value, index, all) => {
+    const key = entityKey(value);
+    return !all.some((other, otherIndex) => {
+      if (index === otherIndex) return false;
+      const otherKey = entityKey(other);
+      return otherKey.length > key.length && new RegExp(`(^|\\s)${escapeRegExp(key)}(?=$|\\s)`, 'i').test(otherKey);
+    });
+  });
+  merged.things = merged.things.slice(0, 12);
+  merged.feelings = merged.feelings.slice(0, 10);
+  return merged;
+}
+
+function setBrainStatus(status, message) {
+  localBrain.status = status;
+  localBrain.message = message;
+  const statusNode = document.getElementById('brain-status');
+  const pill = document.getElementById('privacy-pill');
+  if (statusNode) statusNode.textContent = message;
+  if (pill) pill.dataset.state = status;
+}
+
+function settleBrainRequests(result = null) {
+  localBrain.pending.forEach(({ resolve, timeout }) => {
+    clearTimeout(timeout);
+    resolve(result);
+  });
+  localBrain.pending.clear();
+}
+
+function stopLocalBrain() {
+  if (localBrain.worker) localBrain.worker.terminate();
+  localBrain.worker = null;
+  localBrain.model = null;
+  settleBrainRequests(null);
+  setBrainStatus('off', 'rules only · model paused');
+}
+
+function startLocalBrain() {
+  if (!brainEnabled || localBrain.worker) return;
+  if (location.protocol === 'file:') {
+    setBrainStatus('error', 'rules ready · model needs local server');
+    return;
+  }
+  if (!('Worker' in window)) {
+    setBrainStatus('error', 'rules ready · worker unavailable');
+    return;
+  }
+
+  setBrainStatus('loading', 'waking local semantic brain…');
+  const worker = new Worker(new URL('assets/local-brain.worker.js', document.baseURI), { type: 'module' });
+  localBrain.worker = worker;
+  worker.addEventListener('message', event => {
+    const message = event.data || {};
+    if (message.type === 'status') {
+      setBrainStatus('loading', message.message || 'loading local model…');
+      return;
+    }
+    if (message.type === 'ready') {
+      localBrain.model = { id: message.model, revision: message.revision };
+      setBrainStatus('ready', '23 MB semantic model · ready');
+      const currentText = document.getElementById('entry-text')?.value || '';
+      if (currentText.trim()) updatePreview(currentText);
+      return;
+    }
+    if (message.type === 'result') {
+      const pending = localBrain.pending.get(message.id);
+      if (!pending) return;
+      clearTimeout(pending.timeout);
+      localBrain.pending.delete(message.id);
+      pending.resolve(message.result || null);
+      return;
+    }
+    if (message.type === 'error') {
+      settleBrainRequests(null);
+      setBrainStatus('error', 'rules ready · model unavailable');
+    }
+  });
+  worker.addEventListener('error', () => {
+    settleBrainRequests(null);
+    setBrainStatus('error', 'rules ready · model unavailable');
+  });
+  worker.postMessage({ type: 'init' });
+}
+
+function requestSemanticAnalysis(text, baseEntities) {
+  if (!brainEnabled || localBrain.status !== 'ready' || !localBrain.worker) return Promise.resolve(null);
+  const id = ++brainRequestId;
+  const candidates = buildSemanticCandidates(text, baseEntities);
+  return new Promise(resolve => {
+    const timeout = setTimeout(() => {
+      localBrain.pending.delete(id);
+      resolve(null);
+    }, 15000);
+    localBrain.pending.set(id, { resolve, timeout });
+    localBrain.worker.postMessage({ type: 'analyze', id, text, candidates });
+  });
+}
+
+async function enrichEntities(text, baseEntities = extractEntities(text)) {
+  const semantic = await requestSemanticAnalysis(text, baseEntities);
+  return mergeSemanticEntities(baseEntities, semantic);
+}
+
+async function prepareOfflineBrain() {
+  if (!brainEnabled) {
+    setBrainStatus('off', 'rules only · model paused');
+    return;
+  }
+  if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+    try {
+      await navigator.serviceWorker.register(new URL('sw.js', document.baseURI), { scope: './' });
+      await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise(resolve => setTimeout(resolve, 45000))
+      ]);
+    } catch (error) {
+      // The model still works online or from a normal local server; rules remain the fallback.
+    }
+  }
+  startLocalBrain();
 }
 
 // ── Graph layout (force-directed simplified) ──────────
@@ -1106,24 +1337,36 @@ function formatDate(iso) {
 
 // ── Entity preview ────────────────────────────────────
 let previewTimeout;
+let previewVersion = 0;
+function renderEntityPreview(entities) {
+  const container = document.getElementById('entity-preview');
+  const chips = [];
+  const add = (arr, cls) => arr.forEach(label => {
+    chips.push(`<div class="chip chip-${cls}"><span class="chip-dot"></span>${escapeHTML(label)}</div>`);
+  });
+  add(entities.people,   'people');
+  add(entities.places,   'places');
+  add(entities.things,   'things');
+  add(entities.feelings, 'feelings');
+  container.innerHTML = chips.length ? chips.join('') : '<span style="font-size:11px;color:var(--dim);font-style:italic">no entities detected yet…</span>';
+}
+
 function updatePreview(text) {
   clearTimeout(previewTimeout);
+  const version = ++previewVersion;
   previewTimeout = setTimeout(() => {
     const container = document.getElementById('entity-preview');
     if (!text.trim()) {
       container.innerHTML = '<span style="font-size:11px;color:var(--dim);font-style:italic">start typing to see nodes…</span>';
       return;
     }
-    const ents = extractEntities(text);
-    const chips = [];
-    const add = (arr, cls) => arr.forEach(label => {
-      chips.push(`<div class="chip chip-${cls}"><span class="chip-dot"></span>${escapeHTML(label)}</div>`);
+    const base = extractEntities(text);
+    renderEntityPreview(base);
+    enrichEntities(text, base).then(entities => {
+      if (version === previewVersion && document.getElementById('entry-text').value === text) {
+        renderEntityPreview(entities);
+      }
     });
-    add(ents.people,   'people');
-    add(ents.places,   'places');
-    add(ents.things,   'things');
-    add(ents.feelings, 'feelings');
-    container.innerHTML = chips.length ? chips.join('') : '<span style="font-size:11px;color:var(--dim);font-style:italic">no entities detected yet…</span>';
   }, 250);
 }
 
@@ -1206,20 +1449,34 @@ function init() {
   });
 
   // Map to stars
-  document.getElementById('btn-map').addEventListener('click', () => {
+  document.getElementById('btn-map').addEventListener('click', async () => {
+    const button = document.getElementById('btn-map');
     const text = document.getElementById('entry-text').value.trim();
     const date = document.getElementById('entry-date').value || todayISO();
     if (!text) return;
-    const entities = extractEntities(text);
+    const originalLabel = button.textContent;
+    button.disabled = true;
+    if (localBrain.status === 'ready') button.textContent = 'Thinking locally…';
+    const baseEntities = extractEntities(text);
+    const entities = await enrichEntities(text, baseEntities);
+    button.disabled = false;
+    button.textContent = originalLabel;
     const total = Object.values(entities).flat().length;
     if (!total) { alert('No entities detected — try mentioning people, places, or feelings!'); return; }
+
+    const recognition = {
+      rules: true,
+      semanticModel: localBrain.status === 'ready' && localBrain.model
+        ? { ...localBrain.model }
+        : null
+    };
 
     // Check for existing same-date entry
     const existIdx = entries.findIndex(e => e.date === date);
     if (existIdx >= 0) {
-      entries[existIdx] = { date, text, entities, updatedAt: Date.now() };
+      entries[existIdx] = { date, text, entities, recognition, updatedAt: Date.now() };
     } else {
-      entries.push({ date, text, entities, createdAt: Date.now() });
+      entries.push({ date, text, entities, recognition, createdAt: Date.now() });
     }
     saveEntries(entries);
     rebuildGraph();
@@ -1235,6 +1492,23 @@ function init() {
     document.getElementById('entry-date').value = todayISO();
     updatePreview('');
     renderer.selectedEntry = null;
+  });
+
+  // The semantic model is optional; rules remain live when it is paused or unavailable.
+  const brainToggle = document.getElementById('brain-toggle');
+  brainToggle.setAttribute('aria-pressed', String(brainEnabled));
+  brainToggle.textContent = brainEnabled ? 'semantic brain on' : 'semantic brain off';
+  brainToggle.addEventListener('click', () => {
+    brainEnabled = !brainEnabled;
+    localStorage.setItem(BRAIN_PREF_KEY, brainEnabled ? 'on' : 'off');
+    brainToggle.setAttribute('aria-pressed', String(brainEnabled));
+    brainToggle.textContent = brainEnabled ? 'semantic brain on' : 'semantic brain off';
+    if (brainEnabled) {
+      startLocalBrain();
+    } else {
+      stopLocalBrain();
+      updatePreview(document.getElementById('entry-text').value);
+    }
   });
 
   // Tabs
@@ -1317,6 +1591,9 @@ function init() {
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
     renderer._drawStars();
   });
+
+  // Install/cache the local runtime first, then wake the model in its Worker.
+  prepareOfflineBrain();
 }
 
 document.addEventListener('DOMContentLoaded', init);

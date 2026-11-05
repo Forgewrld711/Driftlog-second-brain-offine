@@ -1,0 +1,5 @@
+aa5002b70e789798da263f5f99c62bd3e8fcd0c119258a493c40c180648365fa  assets/vendor/transformers.min.js
+96e80b413dda387fbcefbd2bb0015f6708323767cc0dd5383260106582e77781  assets/vendor/ort.bundle.min.mjs
+08fb86ec433c78bfb032c5d84a68b8e8e5a8d81268fa39e24314179a5767a5b9  assets/vendor/ort-wasm-simd-threaded.jsep.mjs
+c46655e8a94afc45338d4cb2b840475f88e5012d524509916e505079c00bfa39  assets/vendor/ort-wasm-simd-threaded.jsep.wasm
+afdb6f1a0e45b715d0bb9b11772f032c399babd23bfc31fed1c170afc848bdb1  models/Xenova/all-MiniLM-L6-v2/onnx/model_int8.onnx
