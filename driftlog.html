@@ -1,19 +1,26 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Driftlog</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%2303040a'/%3E%3Cpath d='M32 8l4.5 19.5L56 32l-19.5 4.5L32 56l-4.5-19.5L8 32l19.5-4.5z' fill='%239fa7ff'/%3E%3C/svg%3E">
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=Space+Mono:wght@400;700&display=swap">
 
 <style>
 /* ── Layout: full-screen canvas behind, sidebar input panel ── */
 :root {
   /* dark-first: space aesthetic is the design */
   color-scheme: dark;
-  --bg:         #090b12;
-  --surface:    #0f1320;
-  --panel:      #111827;
-  --border:     rgba(255,255,255,0.07);
-  --fg:         #e2e8f0;
-  --muted:      #64748b;
-  --dim:        #334155;
+  --bg:         #03040a;
+  --surface:    #090d18;
+  --panel:      #070b14;
+  --panel-deep: #040710;
+  --border:     rgba(156,163,255,0.12);
+  --fg:         #eef0ff;
+  --muted:      #858ca8;
+  --dim:        #414962;
+  --accent:     #8b8cff;
 
   /* entity colors */
   --people:     #60a5fa;   /* blue */
@@ -29,60 +36,23 @@
   --glow-feelings: 0 0 12px rgba(251,146,60,0.6),  0 0 28px rgba(251,146,60,0.25);
 
   /* type */
-  --font-ui:   'Inter', system-ui, sans-serif;
-  --font-mono: 'Space Mono', monospace;
+  --font-ui:   Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
 
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) {
-    color-scheme: light;
-    --bg:         #f1f5f9;
-    --surface:    #ffffff;
-    --panel:      #f8fafc;
-    --border:     rgba(0,0,0,0.09);
-    --fg:         #0f172a;
-    --muted:      #94a3b8;
-    --dim:        #cbd5e1;
-    --link-col:   rgba(100,116,139,0.25);
-    --people:     #2563eb;
-    --places:     #059669;
-    --things:     #7c3aed;
-    --feelings:   #ea580c;
-    --glow-people:   0 0 8px rgba(37,99,235,0.35);
-    --glow-places:   0 0 8px rgba(5,150,105,0.35);
-    --glow-things:   0 0 8px rgba(124,58,237,0.35);
-    --glow-feelings: 0 0 8px rgba(234,88,12,0.35);
-  }
-}
-:root[data-theme="light"] {
-  color-scheme: light;
-  --bg:         #f1f5f9;
-  --surface:    #ffffff;
-  --panel:      #f8fafc;
-  --border:     rgba(0,0,0,0.09);
-  --fg:         #0f172a;
-  --muted:      #94a3b8;
-  --dim:        #cbd5e1;
-  --link-col:   rgba(100,116,139,0.25);
-  --people:     #2563eb;
-  --places:     #059669;
-  --things:     #7c3aed;
-  --feelings:   #ea580c;
-  --glow-people:   0 0 8px rgba(37,99,235,0.35);
-  --glow-places:   0 0 8px rgba(5,150,105,0.35);
-  --glow-things:   0 0 8px rgba(124,58,237,0.35);
-  --glow-feelings: 0 0 8px rgba(234,88,12,0.35);
-}
-
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+[hidden] { display: none !important; }
 
 html, body {
   height: 100%;
   font-family: var(--font-ui);
   background: var(--bg);
+  background-image:
+    radial-gradient(circle at 18% 14%, rgba(76, 82, 180, 0.12), transparent 32%),
+    radial-gradient(circle at 82% 78%, rgba(27, 155, 156, 0.06), transparent 30%);
   color: var(--fg);
   overflow: hidden;
 }
@@ -174,7 +144,7 @@ html, body {
   min-width: 280px;
   display: flex;
   flex-direction: column;
-  background: var(--panel);
+  background: linear-gradient(180deg, rgba(9,13,24,0.97), rgba(4,7,16,0.99));
   border-left: 1px solid var(--border);
   z-index: 3;
   overflow: hidden;
@@ -231,6 +201,21 @@ html, body {
   text-transform: uppercase;
   margin-top: 4px;
 }
+.privacy-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 4px 8px;
+  border: 1px solid rgba(52,211,153,0.2);
+  border-radius: 999px;
+  color: #75e0b7;
+  background: rgba(52,211,153,0.06);
+  font: 700 9px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.privacy-pill::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; }
 
 /* ── Tabs ── */
 .tabs {
@@ -334,9 +319,10 @@ textarea#entry-text::placeholder { color: var(--dim); }
 }
 .btn-primary {
   flex: 1;
-  background: var(--fg);
-  color: var(--bg);
+  background: linear-gradient(135deg, #dfe3ff, #9fa7ff);
+  color: #090b14;
   border-color: transparent;
+  box-shadow: 0 8px 24px rgba(104,110,230,0.18);
 }
 .btn-primary:hover { opacity: 0.85; }
 .btn-ghost {
@@ -502,6 +488,8 @@ textarea#entry-text::placeholder { color: var(--dim); }
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 </style>
+</head>
+<body>
 
 <div id="app">
   <!-- Canvas side -->
@@ -538,6 +526,7 @@ textarea#entry-text::placeholder { color: var(--dim); }
     <div class="sidebar-header">
       <div class="app-title">driftlog <span>✦</span></div>
       <div class="app-subtitle">your day, mapped as it drifts</div>
+      <div class="privacy-pill" title="No network calls. Recognition runs in this file.">offline · local recognizer</div>
       <div class="tabs" role="tablist">
         <button class="tab active" data-tab="write" role="tab">Write</button>
         <button class="tab"        data-tab="log"   role="tab">Log</button>
@@ -592,101 +581,196 @@ function saveEntries(entries) {
 }
 
 // ── Entity extraction ─────────────────────────────────
-const FEELINGS = [
-  'happy','sad','anxious','tired','excited','grateful','overwhelmed','calm','angry',
-  'confused','proud','hopeful','lonely','content','frustrated','inspired','nervous',
-  'relieved','worried','joyful','nostalgic','love','loved','fear','scared','peaceful',
-  'energized','exhausted','stressed','curious','bored','melancholy','elated','numb',
-  'lost','found','whole','broken','healing','growing','stuck'
-];
+const FEELING_FAMILIES = {
+  Happy: ['happy','joyful','delighted','cheerful','glad','elated','thrilled'],
+  Calm: ['calm','peaceful','content','settled','grounded','at ease'],
+  Excited: ['excited','hyped','eager','energized','pumped','stoked'],
+  Grateful: ['grateful','thankful','appreciative','blessed'],
+  Proud: ['proud','accomplished','capable'],
+  Hopeful: ['hopeful','optimistic','encouraged'],
+  Inspired: ['inspired','creative','motivated','curious'],
+  Sad: ['sad','unhappy','heartbroken','down','melancholy','grief','grieving'],
+  Anxious: ['anxious','nervous','uneasy','panicked','on edge','freaked out'],
+  Angry: ['angry','mad','furious','irritated','annoyed','pissed'],
+  Overwhelmed: ['overwhelmed','swamped','overloaded','too much'],
+  Tired: ['tired','exhausted','drained','sleepy','worn out','burned out','burnt out'],
+  Frustrated: ['frustrated','stuck','blocked','fed up'],
+  Lonely: ['lonely','isolated','alone','left out'],
+  Confused: ['confused','uncertain','unsure','lost','puzzled'],
+  Relieved: ['relieved','reassured','lighter'],
+  Scared: ['scared','afraid','fearful','terrified','worried'],
+  Numb: ['numb','empty','disconnected','detached']
+};
 
 const PLACE_SIGNALS = [
-  'at','to','from','in','outside','inside','near','through','via','visited',
-  'went to','drove to','walked to','stopped at','passed','left','arrived'
+  'went to','drove to','walked to','stopped at','arrived at','headed to','visited',
+  'outside','inside','near','through','around','at','from','in'
 ];
 
 const THING_SIGNALS = [
-  'reading','read','watching','watched','ate','eating','bought','worked on',
-  'using','used','found','lost','making','made','building','built','playing',
-  'started','finished','writing','wrote','tried','learning','studied'
+  'worked on','listened to','talked about','thought about','reading','read','watching',
+  'watched','ate','eating','bought','using','used','found','making','made','building',
+  'built','playing','started','finished','writing','wrote','tried','learning','studied',
+  'fixed','designed','created','cooked','cleaned','organized'
 ];
 
+const PERSON_SIGNALS = [
+  'with','met','saw','called','texted','emailed','asked','told','helped','visited',
+  'talked to','spoke with','heard from','hung out with'
+];
+
+const PLACE_SUFFIXES = [
+  'park','hospital','school','university','college','library','cafe','coffee','restaurant',
+  'store','market','mall','beach','lake','river','road','street','avenue','station','airport',
+  'office','studio','house','home','gym','museum','theater','cinema','church','trail'
+];
+
+const TOPIC_HINTS = new Set([
+  'app','album','article','assignment','baby','blockchain','book','cat','class','code',
+  'college','computer','course','crystal','demo','design','dog','email','game','garden',
+  'homework','journal','meeting','movie','music','painting','podcast','project','quartz',
+  'recipe','rock','school','song','story','test','video','website','work'
+]);
+
+const STOP_WORDS = new Set((
+  'about after again against almost also always among and another any are because been before being between both ' +
+  'but can could did does doing done each even every few for from get getting got had has have having her here hers ' +
+  'him his how into its just know like made make many may might more most much myself near not now off often once only ' +
+  'other our ours out over really said same she should since some still such than that the their theirs them then there ' +
+  'these they thing things this those through today tomorrow too under until very want was way were what when where which ' +
+  'while who why will with would yesterday you your yours'.split(' ')
+));
+
+const PHRASE_BREAKS = new Set([
+  'and','but','because','before','after','while','when','where','which','who','that','then','so',
+  'with','without','i','we','he','she','they','it','my','our','his','her','their','was','were','am','is','are'
+]);
+
+const NAME_BLOCKLIST = new Set([
+  'Today','Yesterday','Tomorrow','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday',
+  'January','February','March','April','May','June','July','August','September','October','November','December',
+  'The','This','That','These','Those','I','We','He','She','They','It','My','Our','His','Her','Their'
+]);
+
 function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
-function titleCase(s) { return s.replace(/\w\S*/g, t => t.charAt(0).toUpperCase() + t.slice(1)); }
+function escapeHTML(value) {
+  return String(value).replace(/[&<>"']/g, character => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+  })[character]);
+}
+function titleCase(s) {
+  return s.replace(/[\p{L}\p{N}][\p{L}\p{N}'’&-]*/gu, token =>
+    token.length <= 3 && token === token.toUpperCase()
+      ? token
+      : token.charAt(0).toUpperCase() + token.slice(1).toLowerCase()
+  );
+}
+function escapeRegExp(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+function entityKey(s) { return s.toLowerCase().replace(/[’]/g, "'").replace(/\s+/g, ' ').trim(); }
+function isInsideQuotes(text, index) {
+  const before = text.slice(0, index);
+  const straight = (before.match(/"/g) || []).length;
+  const openCurly = (before.match(/“/g) || []).length;
+  const closeCurly = (before.match(/”/g) || []).length;
+  return straight % 2 === 1 || openCurly > closeCurly;
+}
+function cleanPhrase(raw, maxWords = 4) {
+  const words = raw.replace(/[.,!?;:()[\]{}"“”]+$/g, '').trim().split(/\s+/);
+  const kept = [];
+  for (const word of words) {
+    const bare = word.toLowerCase().replace(/[^\p{L}\p{N}'’-]/gu, '');
+    if (!bare || PHRASE_BREAKS.has(bare)) break;
+    kept.push(word.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}'’&-]+$/gu, ''));
+    if (kept.length >= maxWords) break;
+  }
+  return kept.filter(Boolean).join(' ');
+}
 
 function extractEntities(text) {
-  const lower = text.toLowerCase();
   const entities = { people: [], places: [], things: [], feelings: [] };
-  const seen = new Set();
-
-  // Feelings — exact keyword match
-  FEELINGS.forEach(f => {
-    if (lower.includes(f) && !seen.has(f)) {
-      seen.add(f); entities.feelings.push(capitalize(f));
-    }
-  });
-
-  // People — capitalized names not at sentence start (simple heuristic)
-  const nameRe = /(?<![.!?]\s)(?<!\n)\b([A-Z][a-z]{1,14})(?:\s+[A-Z][a-z]{1,14})?\b/g;
-  const common = new Set(['I','The','A','An','It','He','She','We','They','But','So',
-    'And','Or','For','With','My','Your','His','Her','Our','Their',
-    'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday',
-    'January','February','March','April','May','June','July','August',
-    'September','October','November','December',
-    'Today','Yesterday','Tomorrow','This','That','These','Those',
-    'Just','Really','Very','Already','Still','Also','Even','Only']);
+  const seen = { people: new Set(), places: new Set(), things: new Set(), feelings: new Set() };
+  const add = (type, value) => {
+    const clean = cleanPhrase(value, type === 'things' ? 5 : 4);
+    const key = entityKey(clean);
+    if (clean.length < 2 || seen[type].has(key)) return;
+    seen[type].add(key);
+    entities[type].push(type === 'feelings' ? capitalize(clean) : titleCase(clean));
+  };
   let match;
-  while ((match = nameRe.exec(text)) !== null) {
-    const name = match[1];
-    if (!common.has(name) && name.length > 1 && !seen.has(name.toLowerCase())) {
-      seen.add(name.toLowerCase());
-      entities.people.push(titleCase(match[0].trim()));
+
+  // Feelings: phrase-aware and boundary-safe ("sad" no longer matches "satisfied").
+  Object.entries(FEELING_FAMILIES).forEach(([label, terms]) => {
+    if (terms.some(term => new RegExp(`(^|[^\\p{L}])${escapeRegExp(term)}(?=$|[^\\p{L}])`, 'iu').test(text))) {
+      add('feelings', label);
     }
+  });
+
+  // Explicit lightweight markup: @person and #topic are always intentional.
+  const personTagRe = /(?:^|\s)@([\p{L}][\p{L}\p{N}'’-]{1,30})/gu;
+  while ((match = personTagRe.exec(text)) !== null) add('people', match[1]);
+  const topicTagRe = /(?:^|\s)#([\p{L}\p{N}][\p{L}\p{N}'’-]{1,40})/gu;
+  while ((match = topicTagRe.exec(text)) !== null) add('things', match[1].replace(/[-_]+/g, ' '));
+
+  // Multi-word proper names are strong person candidates; single names require context.
+  const fullNameRe = /\b([A-Z][a-z'’-]{1,20}(?:\s+[A-Z][a-z'’-]{1,20}){1,2})\b/g;
+  while ((match = fullNameRe.exec(text)) !== null) {
+    if (!isInsideQuotes(text, match.index) && !match[1].split(/\s+/).some(word => NAME_BLOCKLIST.has(word))) add('people', match[1]);
   }
+  PERSON_SIGNALS.forEach(signal => {
+    const re = new RegExp(`\\b${escapeRegExp(signal)}\\b\\s+(?:my\\s+|our\\s+)?([A-Z][\\p{L}'’-]{1,20}(?:\\s+[A-Z][\\p{L}'’-]{1,20}){0,2})`, 'gu');
+    while ((match = re.exec(text)) !== null) {
+      if (!NAME_BLOCKLIST.has(match[1])) add('people', match[1]);
+    }
+  });
 
-  // Places — word(s) after place signals
+  // Places: bounded phrases after movement/location cues.
   PLACE_SIGNALS.forEach(signal => {
-    const re = new RegExp(`\\b${signal}\\b\\s+(?:the\\s+)?([A-Z][\\w'\\s-]{1,30})`, 'gi');
-    while ((match = re.exec(text)) !== null) {
-      const place = match[1].trim();
-      if (place.length > 2 && !seen.has(place.toLowerCase())) {
-        seen.add(place.toLowerCase());
-        entities.places.push(titleCase(place));
-      }
-    }
-    // also lowercase place after signal
-    const re2 = new RegExp(`\\b${signal}\\s+(\\w[\\w'\\s]{2,20})`, 'gi');
-    while ((match = re2.exec(text)) !== null) {
-      const place = match[1].trim();
-      if (place.length > 2 && !seen.has(place.toLowerCase()) && !FEELINGS.includes(place.toLowerCase())) {
-        seen.add(place.toLowerCase());
-        entities.places.push(titleCase(place));
-      }
-    }
+    const re = new RegExp(`\\b${escapeRegExp(signal)}\\b\\s+(?:the\\s+|my\\s+|our\\s+)?([\\p{L}\\p{N}][\\p{L}\\p{N}'’&-]*(?:\\s+[\\p{L}\\p{N}][\\p{L}\\p{N}'’&-]*){0,3})`, 'giu');
+    while ((match = re.exec(text)) !== null) add('places', match[1]);
   });
+  const placeSuffixPattern = PLACE_SUFFIXES.flatMap(value => [value, capitalize(value)]).join('|');
+  const titledPlaceRe = new RegExp(`\\b([A-Z][\\p{L}'’&-]*(?:\\s+[A-Z][\\p{L}'’&-]*){0,2}\\s+(?:${placeSuffixPattern}))\\b`, 'gu');
+  while ((match = titledPlaceRe.exec(text)) !== null) add('places', match[1]);
 
-  // Things — word(s) after thing signals
+  // Things/topics: quoted works and bounded phrases after action cues.
+  const quotedRe = /["“]([^"”\n]{2,50})["”]/g;
+  while ((match = quotedRe.exec(text)) !== null) add('things', match[1]);
   THING_SIGNALS.forEach(signal => {
-    const re = new RegExp(`\\b${signal}\\s+(?:a\\s+|an\\s+|the\\s+)?([\\w][\\w'\\s-]{1,24})`, 'gi');
-    while ((match = re.exec(text)) !== null) {
-      const thing = match[1].trim().replace(/\s+/g,' ').split(' ').slice(0,3).join(' ');
-      if (thing.length > 2 && !seen.has(thing.toLowerCase()) && !FEELINGS.includes(thing.toLowerCase())) {
-        seen.add(thing.toLowerCase());
-        entities.things.push(titleCase(thing));
-      }
-    }
+    const re = new RegExp(`\\b${escapeRegExp(signal)}\\b\\s+(?:a\\s+|an\\s+|the\\s+|my\\s+|our\\s+)?([\\p{L}\\p{N}][\\p{L}\\p{N}'’&-]*(?:\\s+[\\p{L}\\p{N}][\\p{L}\\p{N}'’&-]*){0,4})`, 'giu');
+    while ((match = re.exec(text)) !== null) add('things', match[1]);
   });
 
-  // Deduplicate people from places/things
-  entities.places = entities.places.filter(p => !entities.people.includes(p));
-  entities.things = entities.things.filter(t => !entities.people.includes(t) && !entities.places.includes(t));
+  // Compact offline keyword scorer catches recurring or domain-significant topics.
+  const counts = new Map();
+  for (const token of text.match(/[\p{L}][\p{L}\p{N}'’-]{2,}/gu) || []) {
+    const key = entityKey(token);
+    if (STOP_WORDS.has(key) || key.length < 3) continue;
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  [...counts.entries()]
+    .filter(([word, count]) => count > 1 || TOPIC_HINTS.has(word))
+    .sort((a, b) => (b[1] + (TOPIC_HINTS.has(b[0]) ? 2 : 0)) - (a[1] + (TOPIC_HINTS.has(a[0]) ? 2 : 0)))
+    .slice(0, 6)
+    .forEach(([word]) => add('things', word));
 
-  // Cap each
+  // Resolve cross-category collisions with explicit place > person > thing precedence.
+  const placeKeys = new Set(entities.places.map(entityKey));
+  entities.people = entities.people.filter(value => !placeKeys.has(entityKey(value)));
+  const namedKeys = new Set([...entities.places, ...entities.people].map(entityKey));
+  entities.things = entities.things.filter(value => !namedKeys.has(entityKey(value)));
+  entities.things = entities.things.filter((value, index, all) => {
+    const key = entityKey(value);
+    return !all.some((other, otherIndex) => {
+      if (index === otherIndex) return false;
+      const otherKey = entityKey(other);
+      return otherKey.length > key.length && new RegExp(`(^|\\s)${escapeRegExp(key)}(?=$|\\s)`, 'i').test(otherKey);
+    });
+  });
+
   entities.people   = entities.people.slice(0, 10);
-  entities.places   = entities.places.slice(0, 8);
-  entities.things   = entities.things.slice(0, 8);
-  entities.feelings = entities.feelings.slice(0, 8);
-
+  entities.places   = entities.places.slice(0, 10);
+  entities.things   = entities.things.slice(0, 12);
+  entities.feelings = entities.feelings.slice(0, 10);
   return entities;
 }
 
@@ -1033,7 +1117,7 @@ function updatePreview(text) {
     const ents = extractEntities(text);
     const chips = [];
     const add = (arr, cls) => arr.forEach(label => {
-      chips.push(`<div class="chip chip-${cls}"><span class="chip-dot"></span>${label}</div>`);
+      chips.push(`<div class="chip chip-${cls}"><span class="chip-dot"></span>${escapeHTML(label)}</div>`);
     });
     add(ents.people,   'people');
     add(ents.places,   'places');
@@ -1058,7 +1142,7 @@ function renderLog() {
     ).join('');
     return `<div class="log-entry" data-idx="${realIdx}" tabindex="0">
       <div class="log-date">${formatDate(entry.date)}</div>
-      <div class="log-preview">${entry.text.slice(0,100)}…</div>
+      <div class="log-preview">${escapeHTML(entry.text.slice(0,100))}…</div>
       <div class="log-nodes">${dots}</div>
     </div>`;
   }).join('');
@@ -1188,7 +1272,7 @@ function init() {
       const tip = document.getElementById('tooltip');
       if (node) {
         const typeLabel = { person:'Person', place:'Place', thing:'Thing', feeling:'Feeling' }[node.type] || '';
-        tip.innerHTML = `<strong>${node.label}</strong><br><span style="font-size:10px;opacity:0.6;">${typeLabel} · ${node.entryIndices.length} entr${node.entryIndices.length===1?'y':'ies'}</span>`;
+        tip.innerHTML = `<strong>${escapeHTML(node.label)}</strong><br><span style="font-size:10px;opacity:0.6;">${typeLabel} · ${node.entryIndices.length} entr${node.entryIndices.length===1?'y':'ies'}</span>`;
         tip.classList.add('show');
         tip.style.left = (e.clientX - rect.left + 14) + 'px';
         tip.style.top  = (e.clientY - rect.top  - 14) + 'px';
@@ -1237,3 +1321,5 @@ function init() {
 
 document.addEventListener('DOMContentLoaded', init);
 </script>
+</body>
+</html>

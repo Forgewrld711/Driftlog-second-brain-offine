@@ -27,7 +27,7 @@ Everything is stored in `localStorage`. No server. No account. No internet. **Ev
 
 ## How to use
 
-1. Download `index.html`
+1. Download `driftlog.html`
 2. Open it in any browser
 3. Write about your day
 4. Hit **Map to stars**
@@ -45,10 +45,12 @@ That's it.
 - ✦ Drag to pan, scroll to zoom, fit-to-screen button
 - ✦ Hover tooltips showing node type and entry count
 - ✦ Entry log — click any past entry to highlight its nodes
-- ✦ Dark space aesthetic + light mode support
+- ✦ Deep-space dark interface designed for low-glare journaling
 - ✦ Responsive — works on mobile
 - ✦ Entries persist via `localStorage`
-- ✦ Entity detection: people, places, things, feelings via regex/keyword NLP (no model needed)
+- ✦ Contextual local recognition for people, bounded places, quoted works, tags, topics, and feeling families
+- ✦ `@people` and `#topics` provide intentional hints without sending text anywhere
+- ✦ Zero remote fonts, scripts, APIs, analytics, or network calls
 
 ---
 
@@ -63,7 +65,7 @@ The whole app is **~400 lines of vanilla HTML/CSS/JS**. No build step. No framew
 ## Roadmap / v2 ideas
 
 - [ ] MCP server integration — expose your constellation as a tool for AI agents
-- [ ] WebLLM power mode — optional on-device LLM for richer entity extraction (Qwen2.5 0.5B via WebGPU)
+- [ ] Optional local-model pack for ambiguous entity refinement (download/import once, cache locally, never required)
 - [ ] Voice entry via Web Speech API
 - [ ] Export constellation as SVG/PNG
 - [ ] Cross-entry "memory threads" — trace a person or feeling across time
