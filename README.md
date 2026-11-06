@@ -8,6 +8,14 @@ A fully offline constellation journal with a bundled 23 MB semantic model. Write
 
 ---
 
+## Updated showcase
+
+[Watch the 1:42 Driftlog v2 showcase](demo/driftlog-showcase-v2.mp4) — narrated by Wren, an actual bird.
+
+The new walkthrough demonstrates improved recognition, the bundled local semantic model, deterministic fallback, and the constellation view without exposing a private journal entry.
+
+---
+
 ## What it does
 
 Type or paste anything about your day into Driftlog. It extracts:
